@@ -1,14 +1,50 @@
 import io
 from sys import argv
+from enum import Enum
 
+# Estados do Protocolo de Coerência - MOESI
+class Estado(Enum):
+    M = "M"
+    O = "O"
+    E = "E"
+    S = "S"
+    I = "I"
+
+# Possíveis algoritmos de Substituição
+class Algoritmo(Enum):
+    LRU = "Least Recently Used"
+    LFU = "Least Frequently Used"
+    FIFO = "First In - First Out"
+    RAND = "Aleatório"
+
+class LinhaCache:
+    def __init__(self, tamLinha):
+        self.estado: Estado = Estado.I
+        self.bloco: list[int] = [0 for _ in range(tamLinha)]
 
 class Cpu:
-    def __init__(self):
+    def __init__(self, sharedCache):
         self.status = "A"
+        # self.cache
+        self.sharedCache = sharedCache
+    
+    def processarInstrucao(self, instrucao, endereco): # talvez trocar o nome de uma das duas processarInstrucao
+        pass
+        
 
 class Cache:
-    def __init__(self):
-        self.
+    def __init__(self, qntLinhas, tamLinha):
+        self.memoria = None
+
+class Simulador:
+    def __init__(self, qntdCpus, qntLinhas, tamLinha, algoritmoSubsitituicao):
+        self.sharedCache = Cache(qntdCpus * qntLinhas * 2, tamLinha)
+        self.cpus = [Cpu() for _ in range(qntdCpus)]
+
+    def processarInstrucao(self, cpu, instrucao, endereco):
+        self.cpus[cpu].processarInstrucao(instrucao, endereco)
+        # talvez só checar aqui se *cpu* é um parametro valido com try catch
+        # self.print()
 
 def main():
     if len(argv) != 3:
@@ -28,14 +64,13 @@ def main():
         # LRU, LFU, FIFO, Random - implementar ao menos 2
         algSubstituicaoCache = "FIFO"
 
-        numProcessadores = 1
+        qntCpus = 1
 
         # mapeamento = associativo
+        simulador = Simulador(qntdCpus, numLinhasCache, tamLinha,algSubstituicaoCache)
 
     with open(argv[2]) as f:
-        cpus: list[Cpu]
-        for _ in range(numProcessadores):
-            cpus.append(Cpu())
+        
 
         i = 1
         while linha := f.readline():
@@ -59,7 +94,7 @@ def main():
                 print("cpu invalida")
                 break
 
-            cpus[cpu]
+            
 
             print(elems)
             i += 1
