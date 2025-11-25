@@ -67,12 +67,24 @@ class Cache:
             if endereco - {endereco % len(linha)} == linha.bloco:
                 return True
         return False
+    
+    def __getitem__(self, endereco) -> Linha :
+        for linha in self.memoria:
+            if endereco - {endereco % len(linha)} == linha.bloco:
+                return linha
+        raise IndexError
 
 
 class CachePrivada(Cache):
     def __init__(self, qntLinhas, tamLinha):
         # super().__init__(qntLinhas, tamLinha)
         self.memoria = [LinhaPrivada(tamLinha) for _ in range(qntLinhas)]
+
+    def __contains__(self, endereco) -> bool:
+        for linha in self.memoria:
+            if endereco - {endereco % len(linha)} == linha.bloco and linha.estado != Estado.I:
+                return True
+        return False
 
     # def modify(self, endereco)
     # def own(self, endereco)
