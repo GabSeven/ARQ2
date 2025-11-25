@@ -1,14 +1,17 @@
 import io
-from sys import argv
 from enum import Enum
-1
+from multiprocessing import Value
+from sys import argv
+
+
 # Estados do Protocolo de Coerência - MOESI
 class Estado(Enum):
-    M = "M"
-    O = "O"
-    E = "E"
-    S = "S"
-    I = "I"
+    M = "Modified"
+    O = "Owned"
+    E = "Exclusive"
+    S = "Shared"
+    I = "Invalid"
+
 
 # Possíveis algoritmos de Substituição
 class Algoritmo(Enum):
@@ -17,47 +20,107 @@ class Algoritmo(Enum):
     FIFO = "First In - First Out"
     RAND = "Aleatório"
 
+
 class Instrucao(Enum):
     LEITURA_INSTRUCAO = 0
     LEITURA_DADO = 2
     ESCRITA_DADO = 3
 
-class Operacao:
-    def __init__(self, cpu: str, )
 
-class LinhaCache:
+class Operacao:
+    def __init__(self, elems: list[str]):
+        self.cpu: int = int(elems[0])
+        self.instrucao: Instrucao = Instrucao(int(elems[1]))
+        self.endereco: int = int(elems[2], 16)
+
+    def __str__(self):
+        return f"Operação: {Instrucao(self.instrucao).name} - Processador {self.cpu} - Endereço: {self.endereco}"
+
+
+class Linha:
+    def __init__(self):
+        self.bloco: int | None = None
+
+
+class LinhaPrivada(Linha):
     def __init__(self, tamLinha):
         self.estado: Estado = Estado.I
-        self.bloco: list[int] = [0 for _ in range(tamLinha)]
+        # deixa só o endereco Base do bloco (o primeiro endereco)
+        self.bloco: int | None = None  # faz sentido deixar None?
 
-class Cpu:
-    def __init__(self, sharedCache):
-        self.status = "A"
-        # self.cache
-        self.sharedCache = sharedCache
-    
-    def processarInstrucao(self, instrucao, endereco): # talvez trocar o nome de uma das duas processarInstrucao
-        pass
-        
-        
     def __str__(self):
-        pass
+        return f"Endereço: {self.bloco} - Estado: {self.estado.name}"
+
 
 class Cache:
     def __init__(self, qntLinhas, tamLinha):
         self.memoria = None
 
+
+class Barramento:
+    def __init__(self):
+        self.cpus: list[Cpu]
+
+    # def broadcast()
+
+
+class Cpu:
+    def __init__(self, id: int, qntLinhas, tamLinha, sharedCache: Cache, barramento):
+        self.id = id
+        self.cache = Cache(qntLinhas, tamLinha)
+        self.sharedCache = sharedCache
+        self.barramento = barramento
+        self.hits = 0
+        self.miss = 0
+
+    def processar(self, instrucao, endereco):
+        # endereco esta na cache?
+        # sim: hit++
+        #   mensagem no barramento se for edicao
+        # nao: miss++
+        #   mensagem no barramento perguntando pelo bloco
+        #
+
+        pass
+
+    def __str__(self):
+        return "\n".join(
+            [
+                f"Processador {self.id} (Hits: {self.hits} - Miss: {self.miss}):",
+                # f"[Linha {i}]" for i in self.cache.linhas
+            ]
+        )
+
+        # Processador 1 (Hits: 150 - Miss: 402):
+        # [Linha 0] Endereço: a4512f34 - Estado: S
+        # [Linha 1] Endereço: 00000000 - Estado: I
+        # [Linha 2] Endereço: bc122312 - Estado: S
+        # [Linha 3] Endereço: d9845678 - Estado: E
+
+
 class Simulador:
     def __init__(self, qntdCpus, qntLinhas, tamLinha, algoritmoSubsitituicao):
+        self.barramento = Barramento()
         self.sharedCache = Cache(qntdCpus * qntLinhas * 2, tamLinha)
-        self.cpus = [Cpu(self.sharedCache) for _ in range(qntdCpus)]
+        self.cpus = [
+            Cpu(i, self.sharedCache, qntLinhas, tamLinha, self.barramento)
+            for i in range(qntdCpus)
+        ]
 
-    def processarInstrucao(self, cpu, instrucao, endereco):
-        self.cpus[cpu].processarInstrucao(instrucao, endereco)
+        self.barramento.cpus = self.cpus
+
+    def processar(self, op: Operacao):
+        try:
+            self.cpus[op.cpu].processar(op.instrucao, op.endereco)
+        except IndexError:
+            print(f"Operacao inválida, não há Processador {op.cpu}")
+            return
         # talvez só checar aqui se *cpu* é um parametro valido com try catch
         # self.print()
 
     # def __str__(self):
+
+
 # print(operacao)
 # print(simulador)
 #         A operação realizada, o endereço no qual ela foi feita e o processador que a realizou
@@ -72,7 +135,6 @@ class Simulador:
 # ◦ Lembre-se que a tentativa de acessar uma linha inválida é um miss na cache.
 # A saída pode ser mostrada em tela (com uma interface gráfica ou terminal) ou um arquivo de log
 # deve ser gerado.
-
 
 
 def main():
@@ -96,7 +158,7 @@ def main():
         qntCpus = 1
 
         # mapeamento = associativo
-        simulador = Simulador(qntCpus, numLinhasCache, tamLinha,algSubstituicaoCache)
+        simulador = Simulador(qntCpus, numLinhasCache, tamLinha, algSubstituicaoCache)
 
     with open(argv[2]) as f:
         print(f"\nInício do Simulador - {argv[2]}")
@@ -111,30 +173,45 @@ def main():
                 break
 
             try:
-                cpu = int(elems[0])
-                instrucao = int(elems[1])
-                endereco = int(elems[2], 16)
+                operacao = Operacao(elems)
 
-            except:
-                print("deu ruim")
+            except ValueError as e:
+                print(e)
                 break
 
-            print(f"Operação: {Instrucao(instrucao).name.replace("_", " ")}", end=" - ")
-            print(f"Processador {cpu}", end=" - ")
-            print(f"Endereço: {elems[2]}")
-            
-            if cpu < 0 or cpu >= qntCpus:
-                print("cpu invalida")
+            # if cpu < 0 or cpu >= qntCpus:
+            #     print("cpu invalida")
 
-                break
-
-            simulador.processarInstrucao(cpu, instrucao, endereco)
+            #     break
+            print(f"Linha {i} - {operacao}")
+            simulador.processar(operacao)
 
             # simulador.print()
-            
+
             # print(elems)
             i += 1
 
+
+# =============================================
+
+# Operação: LEITURA - Processador 3 - Endereço: b8590400
+# Mensagem no barramento: Busca de dados (Read Miss)
+
+# --- Caches Privadas ---
+# Processador 0 (Hits: 232 - Miss: 320):
+# [Linha 0] Endereço: b3212238 - Estado: S
+# [Linha 1] Endereço: bc431221 - Estado: M
+# [Linha 2] Endereço: bc122312 - Estado: I
+# [Linha 3] Endereço: 00000000 - Estado: I
+
+
+# --- Cache Compartilhada ---
+# Endereços presentes:
+# b3212238 | bc431221 | bc122312 | a4512f34
+# d9845678 | 00000000 | 00000000 | 00000000
+
+# =============================================
+# Próxima operação...
 
 if __name__ == "__main__":
     main()
