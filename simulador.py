@@ -38,12 +38,18 @@ class Operacao:
 
 
 class Linha:
-    def __init__(self):
+    def __init__(self, tamLinha):
         self.bloco: int | None = None
+        self.tamanho = tamLinha
+
+    # len é mais usado mas posso tá exagerando (kkkkkkk
+    def __len__(self) -> int:
+        return self.tamanho
 
 
 class LinhaPrivada(Linha):
     def __init__(self, tamLinha):
+        super().__init__(tamLinha)
         self.estado: Estado = Estado.I
         # deixa só o endereco Base do bloco (o primeiro endereco)
         self.bloco: int | None = None  # faz sentido deixar None?
@@ -54,7 +60,25 @@ class LinhaPrivada(Linha):
 
 class Cache:
     def __init__(self, qntLinhas, tamLinha):
-        self.memoria = None
+        self.memoria = [Linha(tamLinha) for _ in range(qntLinhas)]
+
+    def __contains__(self, endereco) -> bool:
+        for linha in self.memoria:
+            if endereco - {endereco % len(linha)} == linha.bloco:
+                return True
+        return False
+
+
+class CachePrivada(Cache):
+    def __init__(self, qntLinhas, tamLinha):
+        # super().__init__(qntLinhas, tamLinha)
+        self.memoria = [LinhaPrivada(tamLinha) for _ in range(qntLinhas)]
+
+    # def modify(self, endereco)
+    # def own(self, endereco)
+    # def exclusive(self, endereco)
+    # def share(self, endereco)
+    # def invalidate(self, endereco)
 
 
 class Barramento:
@@ -67,19 +91,30 @@ class Barramento:
 class Cpu:
     def __init__(self, id: int, qntLinhas, tamLinha, sharedCache: Cache, barramento):
         self.id = id
-        self.cache = Cache(qntLinhas, tamLinha)
+        self.privateCache = CachePrivada(qntLinhas, tamLinha)
         self.sharedCache = sharedCache
         self.barramento = barramento
         self.hits = 0
         self.miss = 0
 
     def processar(self, instrucao, endereco):
-        # endereco esta na cache?
-        # sim: hit++
-        #   mensagem no barramento se for edicao
-        # nao: miss++
-        #   mensagem no barramento perguntando pelo bloco
-        #
+        if endereco in self.privateCache:
+            self.hits += 1
+            # if instrucao == escrita
+            #   self.barramento.bus_upgrade(endereco) # mensagem bus_upgrade - invalida o restante
+            #   self.privateCache.modify(endereco)
+            # return
+
+        self.miss += 1
+        # if self.barramento.bus_read(endereco):
+        #    self.privateCache.addShared(endereco)
+        # else if endereco in self.sharedCache
+        #    self.privateCache.addExclusive(endereco)
+        # else:
+        #    busca endereco na MP e deixa na cache privada e na compartilhada
+
+        # CORRIGIR ALGUNS PROBLEMAS DE LOGICA
+        # nao chequei os estados atuais das linhas de cache
 
         pass
 
