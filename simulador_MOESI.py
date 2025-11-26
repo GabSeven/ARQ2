@@ -4,11 +4,11 @@ from multiprocessing import Value
 from sys import argv
 
 
-# Estados do Protocolo de Coerência - MOSI
+# Estados do Protocolo de Coerência - MOESI
 class Estado(Enum):
     M = "Modified"
     O = "Owned"
-    # E = "Exclusive"
+    E = "Exclusive"
     S = "Shared"
     I = "Invalid"
 
@@ -158,7 +158,7 @@ class CachePrivada(Cache):
 
     def exclusive(self, endereco):
         if (linha := self[endereco]) is not None:
-            linha.estado = Estado.O
+            linha.estado = Estado.E
 
     def share(self, endereco):
         if (linha := self[endereco]) is not None:
@@ -173,7 +173,7 @@ class CachePrivada(Cache):
         self.insere(bloco).estado = Estado.M
 
     def insereE(self, bloco):
-        self.insere(bloco).estado = Estado.O
+        self.insere(bloco).estado = Estado.E
 
     def insereS(self, bloco):
         self.insere(bloco).estado = Estado.S
@@ -213,9 +213,15 @@ class Barramento:
                 pass
 
             if (linha := cpu.privateCache[endereco]) is not None:
-                if linha.estado in [Estado.O, Estado.M]:
-                    linha.estado = Estado.O
-                    bloco = linha.bloco
+                match linha.estado:
+                    case Estado.O | Estado.M:
+                        linha.estado = Estado.O
+                        bloco = linha.bloco
+
+                    case Estado.E:
+                        # no MOESI normal, ele apenas modifica para S, nao retorna
+                        linha.estado = Estado.S
+                        bloco = linha.bloco
 
         if bloco is None:
             if (linha := self.sharedCache[endereco]) is not None:
