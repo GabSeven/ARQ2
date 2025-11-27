@@ -4,6 +4,8 @@ from multiprocessing import Value
 from sys import argv
 
 
+# MOSI - modificacao do estado MOESI focado em Corencia entre
+# caches Privada, cache Compartlhada e Memoria Principal
 # Estados do Protocolo de Coerência - MOSI
 class Estado(Enum):
     M = "Modified"
@@ -117,17 +119,22 @@ class Cache:
         # d9845678 | 00000000 | 00000000 | 00000000
 
     def insere(self, bloco):
+        # id_remove = self.substituicao()
         # FIFO
         self.memoria[self._aux].bloco = bloco
-        self._aux += 1
+        self._aux = (self._aux + 1) % self.tamanho
         return self.memoria[self._aux]
+
+    def atualizaMemoria(self, linha):
+        MemoriaPrincipal.atualiza(linha.bloco)
 
 
 class CachePrivada(Cache):
-    def __init__(self, qntLinhas: int, tamLinha: int, /, tipoLinha=LinhaPrivada):
+    def __init__(self, qntLinhas: int, tamLinha: int, cpu, /, tipoLinha=LinhaPrivada):
         super().__init__(qntLinhas, tamLinha, tipoLinha)
-        self.memoria = [tipoLinha(tamLinha) for _ in range(qntLinhas)]
+        self.cpu = cpu
         # remover isso aqui, so deixei pra n ficar apitano o pydantic
+        self.memoria = [tipoLinha(tamLinha) for _ in range(qntLinhas)]
 
     def __contains__(self, endereco) -> bool:
         for linha in self.memoria:
@@ -148,21 +155,21 @@ class CachePrivada(Cache):
         return None
 
     # fazem sentido esses nomes de metodos?
-    def modify(self, endereco):
-        if (linha := self[endereco]) is not None:
-            linha.estado = Estado.M
+    # def modify(self, endereco):
+    #     if (linha := self[endereco]) is not None:
+    #         linha.estado = Estado.M
 
     # def own(self, endereco):
     #     if linha := self[endereco]:
     #         linha.estado = Estado.O
 
-    def exclusive(self, endereco):
-        if (linha := self[endereco]) is not None:
-            linha.estado = Estado.O
+    # def exclusive(self, endereco):
+    #     if (linha := self[endereco]) is not None:
+    #         linha.estado = Estado.O
 
-    def share(self, endereco):
-        if (linha := self[endereco]) is not None:
-            linha.estado = Estado.S
+    # def share(self, endereco):
+    #     if (linha := self[endereco]) is not None:
+    #         linha.estado = Estado.S
 
     def invalidate(self, endereco):
         if (linha := self[endereco]) is not None:
@@ -172,13 +179,13 @@ class CachePrivada(Cache):
     def insereM(self, bloco):
         self.insere(bloco).estado = Estado.M
 
-    def insereE(self, bloco):
+    def insereO(self, bloco):
         self.insere(bloco).estado = Estado.O
 
     def insereS(self, bloco):
         self.insere(bloco).estado = Estado.S
 
-    def insere(self, bloco):
+    def insere(self, bloco: LinhaPrivada):
         print("inserindo...")
         for linha in self.memoria:
             if linha.estado == Estado.I:
@@ -186,9 +193,17 @@ class CachePrivada(Cache):
                 return linha
 
         # FIFO
-        self.memoria[self._aux].bloco = bloco
+        linha = self.memoria[self._aux]
+
+        if linha.estado in [Estado.M, Estado.O]:
+            self.atualizaMemoria(linha)
+
+        self.memoria[self._aux].bloco = bloco.bloco
         self._aux = (self._aux + 1) % self.tamanho
-        return self.memoria[self._aux - 1]
+        return self.memoria[self._aux]
+
+    def atualizaMemoria(self, linha):
+        self.cpu.atualizaMemoria(linha)
 
 
 class MemoriaPrincipal:
@@ -198,6 +213,13 @@ class MemoriaPrincipal:
         "Busca" na memoria
         """
         return endereco
+
+    @staticmethod
+    def atualiza(endereco: int) -> int:
+        """
+        "Atualiza" o endereco de memoria
+        """
+        pass
 
 
 class Barramento:
@@ -234,9 +256,9 @@ class Barramento:
 
             if (linha := cpu.privateCache[endereco]) is not None:
                 if linha.estado != Estado.S:
-                    # em tese, so pode haver uma linha em M, O ou E entre os cpus com o bloco procurado
-                    # entao da pra pegar o bloco de qualquer linha que nao for S (I nem pode ser retornado ali em cima)
-                    # pq só vai ter ele
+                    # em tese, so pode haver uma linha em M ou O entre os cpus com o bloco
+                    # procurado entao da pra pegar o bloco de qualquer linha que nao for S
+                    # pq só vai ter ele (I nem pode ser retornado ali em cima)
                     bloco = linha.bloco
                 linha.estado = Estado.I
 
@@ -270,7 +292,7 @@ class Cpu:
         barramento: Barramento,
     ):
         self.id = id
-        self.privateCache = CachePrivada(qntLinhas, tamLinha)
+        self.privateCache = CachePrivada(qntLinhas, tamLinha, self)
         self.sharedCache = sharedCache
         self.barramento = barramento
 
@@ -286,7 +308,7 @@ class Cpu:
                     self.barramento.upgrade(endereco, self.id)
                 elif linha.estado == Estado.O:
                     self.barramento.invalidate(endereco, self.id)
-                else:
+                else:  # estado == Estado.M
                     print(Mensagem.NENHUMA)
                 linha.estado = Estado.M  # funcao pra isso?
             return
@@ -301,9 +323,8 @@ class Cpu:
 
         # instrucao == Leitura
         if (bloco := self.barramento.read(endereco, self.id)) is None:
-            # "MOESI+": bloco E avisa que tbm possui o bloco mas nao o envia
             bloco = self.busca(endereco)
-            self.insereE(bloco)
+            self.insereO(bloco)
             return
         self.insereS(bloco)
         return
@@ -327,8 +348,8 @@ class Cpu:
     def insereM(self, bloco):
         self.privateCache.insereM(bloco)
 
-    def insereE(self, bloco):
-        self.privateCache.insereE(bloco)
+    def insereO(self, bloco):
+        self.privateCache.insereO(bloco)
 
     def insereS(self, bloco):
         self.privateCache.insereS(bloco)
@@ -338,6 +359,14 @@ class Cpu:
         bloco = MemoriaPrincipal.busca(endereco)
         self.sharedCache.insere(bloco)
         return bloco
+
+    def atualizaMemoria(self, bloco):
+        if (linha := self.sharedCache[bloco]) is not None:
+            # atualiza cache
+            linha.bloco = bloco
+        else:
+            # atualiza MP
+            MemoriaPrincipal.atualiza(bloco)
 
 
 # Processador 0 (Hits: 232 - Miss: 320):
@@ -451,22 +480,7 @@ def main():
             simulador.processar(operacao)
             print(simulador)
             print()
-
-            # print(elems)
             i += 1
-
-
-# A operação realizada, o endereço no qual ela foi feita e o processador que a realizou
-# ◦ Em outras palavras, a linha do arquivo de entrada;
-# • A mensagem enviada no barramento devido a realização daquela operação;
-# • O estado da cache privada de cada processador;
-# ◦ Quais blocos estão em cache cada linha da cache;
-# ◦ Qual o estado de cada bloco;
-# • Os endereços dos dados que estão na cache compartilhada
-# • A quantidade de acertos (hit) e erros (miss) em cada uma das caches privadas.
-# ◦ Lembre-se que a tentativa de acessar uma linha inválida é um miss na cache.
-# A saída pode ser mostrada em tela (com uma interface gráfica ou terminal) ou um arquivo de log
-# deve ser gerado.
 
 
 if __name__ == "__main__":
