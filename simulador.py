@@ -1,6 +1,7 @@
 import io
 from enum import Enum
 from multiprocessing import Value
+from random import randint
 from sys import argv
 
 
@@ -30,11 +31,11 @@ class Mensagem(Enum):
 
 
 # Possíveis algoritmos de Substituição
-class Algoritmo(Enum):
-    LRU = "Least Recently Used"
-    LFU = "Least Frequently Used"
-    FIFO = "First In - First Out"
-    RAND = "Aleatório"
+# class Algoritmo(Enum):
+#     LRU = "Least Recently Used"
+#     LFU = "Least Frequently Used"
+#     FIFO = "First In - First Out"
+#     RAND = "Aleatório"
 
 
 class Instrucao(Enum):
@@ -78,13 +79,43 @@ class LinhaPrivada(Linha):
     # nao precisa de funcao pra mudar os estados ne
 
 
+def algoritmoLRU(cache):
+    return 0
+
+
+def algoritmoLFU(cache):
+    return 0
+
+
+def algoritmoFIFO(cache):
+    cache.aux += 1
+    return cache.aux - 1
+
+
+def algoritmoRAND(cache):
+    return randint(0, cache.tamanho - 1)
+
+
 class Cache:
-    def __init__(self, qntLinhas: int, tamLinha: int, /, tipoLinha=Linha):
+    ALGORITMOS = {
+        "LRU": algoritmoLRU,
+        "LFU": algoritmoLFU,
+        "FIFO": algoritmoFIFO,
+        "RAND": algoritmoRAND,
+    }
+
+    def __init__(
+        self, qntLinhas: int, tamLinha: int, /, tipoLinha=Linha, algoritmo="FIFO"
+    ):
         self._tamanho = qntLinhas
         self.memoria = [tipoLinha(tamLinha) for _ in range(qntLinhas)]
         self.hits = 0
         self.miss = 0
-        self._aux = 0
+        self.aux = 0
+        if algoritmo.upper() not in self.ALGORITMOS.keys():
+            algoritmo = "FIFO"
+
+        self._algoritmoDeSubstituicao = self.ALGORITMOS[algoritmo.upper()]
 
     def __contains__(self, endereco) -> bool:
         for linha in self.memoria:
@@ -107,6 +138,9 @@ class Cache:
     def tamanho(self) -> int:
         return self._tamanho
 
+    def substituicao(self):
+        return self._algoritmoDeSubstituicao()
+
     def __str__(self):
         txt = f"(Hits: {self.hits:>4} - Miss: {self.miss:>4})\n"
         txt += "Enderecos presentes:\n"
@@ -121,9 +155,9 @@ class Cache:
     def insere(self, bloco):
         # id_remove = self.substituicao()
         # FIFO
-        self.memoria[self._aux].bloco = bloco
-        self._aux = (self._aux + 1) % self.tamanho
-        return self.memoria[self._aux]
+        self.memoria[self.aux].bloco = bloco
+        self.aux = (self.aux + 1) % self.tamanho
+        return self.memoria[self.aux]
 
     def atualizaMemoria(self, linha):
         MemoriaPrincipal.atualiza(linha.bloco)
@@ -185,7 +219,7 @@ class CachePrivada(Cache):
     def insereS(self, bloco):
         self.insere(bloco).estado = Estado.S
 
-    def insere(self, bloco: LinhaPrivada):
+    def insere(self, bloco):
         print("inserindo...")
         for linha in self.memoria:
             if linha.estado == Estado.I:
@@ -193,14 +227,14 @@ class CachePrivada(Cache):
                 return linha
 
         # FIFO
-        linha = self.memoria[self._aux]
+        linha = self.memoria[self.aux]
 
         if linha.estado in [Estado.M, Estado.O]:
             self.atualizaMemoria(linha)
 
-        self.memoria[self._aux].bloco = bloco.bloco
-        self._aux = (self._aux + 1) % self.tamanho
-        return self.memoria[self._aux]
+        self.memoria[self.aux].bloco = bloco.bloco
+        self.aux = (self.aux + 1) % self.tamanho
+        return self.memoria[self.aux]
 
     def atualizaMemoria(self, linha):
         self.cpu.atualizaMemoria(linha)
