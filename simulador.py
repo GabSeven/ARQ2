@@ -8,15 +8,7 @@ from sys import argv
 # MOSI - modificacao do estado MOESI focado em Corencia entre
 # caches Privada, cache Compartlhada e Memoria Principal
 # Estados do Protocolo de Coerência - MOSI
-class Estado(Enum):
-    M = "Modified"
-    O = "Owned"
-    # E = "Exclusive"
-    S = "Shared"
-    I = "Invalid"
-
-
-# Mensagens do Barramento
+nsagens do Barramento
 class Mensagem(Enum):
     READ = "Bus Read"
     READ_EXCLUSIVE = "Bus Read EXCLUSIVE"

@@ -1,0 +1,15 @@
+# FIFO, RAND, LFU, LRU
+algoritmo = "FIFO"
+
+# associativo - assocConj
+mapeamento = "associativo"
+
+
+[linha]
+tamanho = 3
+
+[cache]
+linhas = 4
+
+[cpu]
+quantidade = 2
