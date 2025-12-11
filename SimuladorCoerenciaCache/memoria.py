@@ -94,7 +94,6 @@ class CachePrivada(Cache):
         return False
 
     def __getitem__(self, endereco) -> LinhaPrivada | None:
-        print("tentou")
         for linha in self.memoria:
             if (
                 endereco - (endereco % len(linha)) == linha.bloco
@@ -116,7 +115,7 @@ class CachePrivada(Cache):
     def insereS(self, bloco):
         self.insere(bloco).estado = Estado.S
 
-    def insere(self, bloco: LinhaPrivada) -> LinhaPrivada:
+    def insere(self, bloco) -> LinhaPrivada:
         print("inserindo...")
         for linha in self.memoria:
             if linha.estado == Estado.I:
@@ -129,7 +128,7 @@ class CachePrivada(Cache):
         if linha.estado in [Estado.M, Estado.O]:
             self.atualizaMemoria(linha)
 
-        self.memoria[self.aux].bloco = bloco.bloco
+        self.memoria[self.aux].bloco = bloco
         self.aux = (self.aux + 1) % self.tamanho
         return self.memoria[self.aux]
 

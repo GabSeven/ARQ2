@@ -1,15 +1,16 @@
 # FIFO, RAND, LFU, LRU
 algoritmo = "FIFO"
+# apenas FIFO implementado
 
 # associativo - assocConj
 mapeamento = "associativo"
-
+# apenas associativo foi implementado
 
 [linha]
-tamanho = 3
+tamanho = 1
 
 [cache]
-linhas = 4
+linhas = 2
 
 [cpu]
 quantidade = 2

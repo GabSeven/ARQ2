@@ -24,6 +24,7 @@ def main():
         print(f"\nInício do Simulador - {argv[2]}")
         print()
         i = 1
+        print(simulador)
         while linha := f.readline():
             try:
                 operacao = Operacao(linha.split())
